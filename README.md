@@ -1,5 +1,16 @@
 # [ECCV 2020] Flow-edge Guided Video Completion
 
+## <font color=red>Test Command</font>
+```
+cd tools
+./test.sh
+```
+
+## <font color=red>Test Result</font>
+```
+Too slow, Good enough ?
+```
+
 ### [[Paper](https://arxiv.org/abs/2009.01835)] [[Project Website](http://chengao.vision/FGVC/)] [[Google Colab](https://colab.research.google.com/drive/1pb6FjWdwq_q445rG2NP0dubw7LKNUkqc?usp=sharing)]
 
 <p align='center'>
