@@ -86,10 +86,13 @@ def bboxes_mask_large(imgH, imgW, type='ori'):
         return scipy.ndimage.binary_dilation(mask, iterations=35)
 
 def gradient_mask(mask):
+    pdb.set_trace()
 
     gradient_mask = np.logical_or.reduce((mask,
         np.concatenate((mask[1:, :], np.zeros((1, mask.shape[1]), dtype=np.bool)), axis=0),
         np.concatenate((mask[:, 1:], np.zeros((mask.shape[0], 1), dtype=np.bool)), axis=1)))
+
+    pdb.set_trace()
 
     return gradient_mask
 
@@ -148,9 +151,11 @@ def softmax(x, axis=None, mask_=None):
 
 # Bypass cv2's SHRT_MAX limitation
 def interp(img, x, y):
+    # img.shape, x.shape, y.shape
+    # ((512, 960), (40097,), (40097,))
 
-    x = x.astype(np.float32).reshape(1, -1)
-    y = y.astype(np.float32).reshape(1, -1)
+    x = x.astype(np.float32).reshape(1, -1) # (1, 40097)
+    y = y.astype(np.float32).reshape(1, -1) # (1, 40097)
 
     assert(x.shape == y.shape)
 
@@ -162,13 +167,15 @@ def interp(img, x, y):
     map_y = np.concatenate((y, padding), axis=1).reshape(1024, numPix // 1024 + 1)
 
     # Note that cv2 takes the input in opposite order, i.e. cv2.remap(img, x, y)
-    mapped_img = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
+    mapped_img = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR) # (1024, 40)
+    # map_x.shape, map_y.shape -- ((1024, 40), (1024, 40))
 
-    if len(img.shape) == 2:
+    if len(img.shape) == 2: # Trues
         mapped_img = mapped_img.reshape(-1)[:numPix]
     else:
         mapped_img = mapped_img.reshape(-1, img.shape[2])[:numPix, :]
 
+    # mapped_img.shape -- (40097,)
     return mapped_img
 
 
@@ -187,6 +194,8 @@ def postprocess(img):
 # Backward flow propagating and forward flow propagating consistency check
 def BFconsistCheck(flowB_neighbor, flowF_vertical, flowF_horizont,
                    holepixPos, consistencyThres):
+    # flowB_neighbor.shape, flowF_vertical.shape, flowF_horizont.shape,holepixPos.shape
+    # ((40097, 3), (512, 960), (512, 960), (40097, 3))
 
     flowBF_neighbor = copy.deepcopy(flowB_neighbor)
 
@@ -204,6 +213,9 @@ def BFconsistCheck(flowB_neighbor, flowF_vertical, flowF_horizont,
     BFdiff = ((flowBF_neighbor - holepixPos)[:, 0] ** 2
             + (flowBF_neighbor - holepixPos)[:, 1] ** 2) ** 0.5
     IsConsist = BFdiff < consistencyThres
+
+    # IsConsist.min(), IsConsist.max() --(True, True)
+    # BFdiff.shape -- (40097,)
 
     return IsConsist, BFdiff
 
@@ -233,7 +245,6 @@ def FBconsistCheck(flowF_neighbor, flowB_vertical, flowB_horizont,
 
 
 def consistCheck(flowF, flowB):
-
     # |--------------------|  |--------------------|
     # |       y            |  |       v            |
     # |   x   *            |  |   u   *            |
@@ -241,6 +252,9 @@ def consistCheck(flowF, flowB):
     # |--------------------|  |--------------------|
 
     # sub: numPix * [y x t]
+
+    # flowF.shape, flowB.shape
+    # ((512, 960, 2), (512, 960, 2))
 
     imgH, imgW, _ = flowF.shape
 
@@ -252,170 +266,174 @@ def consistCheck(flowF, flowB):
     v = (fyy + cv2.remap(flowF[:, :, 1], fxx, fyy, cv2.INTER_LINEAR) - fy)
     BFdiff = (u ** 2 + v ** 2) ** 0.5
 
+    # BFdiff.shape -- (512, 960)
+    # np.stack((u, v), axis=2).shape -- (512, 960, 2)
+
     return BFdiff, np.stack((u, v), axis=2)
 
 
-def get_KeySourceFrame_flowNN(sub,
-                              indFrame,
-                              mask,
-                              videoNonLocalFlowB,
-                              videoNonLocalFlowF,
-                              video,
-                              consistencyThres):
+# def get_KeySourceFrame_flowNN(sub,
+#                               indFrame,
+#                               mask,
+#                               videoNonLocalFlowB,
+#                               videoNonLocalFlowF,
+#                               video,
+#                               consistencyThres):
 
-    imgH, imgW, _, _, nFrame = videoNonLocalFlowF.shape
-    KeySourceFrame = [0, nFrame // 2, nFrame - 1]
+#     imgH, imgW, _, _, nFrame = videoNonLocalFlowF.shape
+#     KeySourceFrame = [0, nFrame // 2, nFrame - 1]
 
-    # Bool indicator of missing pixels at frame t
-    holepixPosInd = (sub[:, 2] == indFrame)
+#     # Bool indicator of missing pixels at frame t
+#     holepixPosInd = (sub[:, 2] == indFrame)
 
-    # Hole pixel location at frame t, i.e. [x, y, t]
-    holepixPos = sub[holepixPosInd, :]
+#     # Hole pixel location at frame t, i.e. [x, y, t]
+#     holepixPos = sub[holepixPosInd, :]
 
-    HaveKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3))
-    imgKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
+#     HaveKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3))
+#     imgKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
 
-    for KeySourceFrameIdx in range(3):
+#     for KeySourceFrameIdx in range(3):
 
-        # flowF_neighbor
-        flowF_neighbor = copy.deepcopy(holepixPos)
-        flowF_neighbor = flowF_neighbor.astype(np.float32)
-        flowF_vertical = videoNonLocalFlowF[:, :, 1, KeySourceFrameIdx, indFrame]
-        flowF_horizont = videoNonLocalFlowF[:, :, 0, KeySourceFrameIdx, indFrame]
-        flowB_vertical = videoNonLocalFlowB[:, :, 1, KeySourceFrameIdx, indFrame]
-        flowB_horizont = videoNonLocalFlowB[:, :, 0, KeySourceFrameIdx, indFrame]
+#         # flowF_neighbor
+#         flowF_neighbor = copy.deepcopy(holepixPos)
+#         flowF_neighbor = flowF_neighbor.astype(np.float32)
+#         flowF_vertical = videoNonLocalFlowF[:, :, 1, KeySourceFrameIdx, indFrame]
+#         flowF_horizont = videoNonLocalFlowF[:, :, 0, KeySourceFrameIdx, indFrame]
+#         flowB_vertical = videoNonLocalFlowB[:, :, 1, KeySourceFrameIdx, indFrame]
+#         flowB_horizont = videoNonLocalFlowB[:, :, 0, KeySourceFrameIdx, indFrame]
 
-        flowF_neighbor[:, 0] += flowF_vertical[holepixPos[:, 0], holepixPos[:, 1]]
-        flowF_neighbor[:, 1] += flowF_horizont[holepixPos[:, 0], holepixPos[:, 1]]
-        flowF_neighbor[:, 2] = KeySourceFrame[KeySourceFrameIdx]
+#         flowF_neighbor[:, 0] += flowF_vertical[holepixPos[:, 0], holepixPos[:, 1]]
+#         flowF_neighbor[:, 1] += flowF_horizont[holepixPos[:, 0], holepixPos[:, 1]]
+#         flowF_neighbor[:, 2] = KeySourceFrame[KeySourceFrameIdx]
 
-        # Round the forward flow neighbor location
-        flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
+#         # Round the forward flow neighbor location
+#         flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
 
-        # Check the forawrd/backward consistency
-        IsConsist, _ = FBconsistCheck(flowF_neighbor, flowB_vertical,
-                                    flowB_horizont, holepixPos, consistencyThres)
+#         # Check the forawrd/backward consistency
+#         IsConsist, _ = FBconsistCheck(flowF_neighbor, flowB_vertical,
+#                                     flowB_horizont, holepixPos, consistencyThres)
 
-        # Check out-of-boundary
-        ValidPos = np.logical_and(
-            np.logical_and(flow_neighbor_int[:, 0] >= 0,
-                           flow_neighbor_int[:, 0] < imgH),
-            np.logical_and(flow_neighbor_int[:, 1] >= 0,
-                           flow_neighbor_int[:, 1] < imgW))
+#         # Check out-of-boundary
+#         ValidPos = np.logical_and(
+#             np.logical_and(flow_neighbor_int[:, 0] >= 0,
+#                            flow_neighbor_int[:, 0] < imgH),
+#             np.logical_and(flow_neighbor_int[:, 1] >= 0,
+#                            flow_neighbor_int[:, 1] < imgW))
 
-        holepixPos_ = copy.deepcopy(holepixPos)[ValidPos, :]
-        flow_neighbor_int = flow_neighbor_int[ValidPos, :]
-        flowF_neighbor = flowF_neighbor[ValidPos, :]
-        IsConsist = IsConsist[ValidPos]
+#         holepixPos_ = copy.deepcopy(holepixPos)[ValidPos, :]
+#         flow_neighbor_int = flow_neighbor_int[ValidPos, :]
+#         flowF_neighbor = flowF_neighbor[ValidPos, :]
+#         IsConsist = IsConsist[ValidPos]
 
-        KnownInd = mask[flow_neighbor_int[:, 0],
-                        flow_neighbor_int[:, 1],
-                        KeySourceFrame[KeySourceFrameIdx]] == 0
+#         KnownInd = mask[flow_neighbor_int[:, 0],
+#                         flow_neighbor_int[:, 1],
+#                         KeySourceFrame[KeySourceFrameIdx]] == 0
 
-        KnownInd = np.logical_and(KnownInd, IsConsist)
+#         KnownInd = np.logical_and(KnownInd, IsConsist)
 
-        imgKeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
-            copy.deepcopy(video[:, :, :, indFrame])
+#         imgKeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
+#             copy.deepcopy(video[:, :, :, indFrame])
 
-        imgKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
-                                holepixPos_[KnownInd, 1],
-                             :, KeySourceFrameIdx] = \
-                         interp(video[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
-                                flowF_neighbor[KnownInd, 1].reshape(-1),
-                                flowF_neighbor[KnownInd, 0].reshape(-1))
+#         imgKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
+#                                 holepixPos_[KnownInd, 1],
+#                              :, KeySourceFrameIdx] = \
+#                          interp(video[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
+#                                 flowF_neighbor[KnownInd, 1].reshape(-1),
+#                                 flowF_neighbor[KnownInd, 0].reshape(-1))
 
-        HaveKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
-                                 holepixPos_[KnownInd, 1],
-                                 KeySourceFrameIdx] = 1
+#         HaveKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
+#                                  holepixPos_[KnownInd, 1],
+#                                  KeySourceFrameIdx] = 1
 
-    return HaveKeySourceFrameFlowNN, imgKeySourceFrameFlowNN
+#     return HaveKeySourceFrameFlowNN, imgKeySourceFrameFlowNN
 #
-def get_KeySourceFrame_flowNN_gradient(sub,
-                                      indFrame,
-                                      mask,
-                                      videoNonLocalFlowB,
-                                      videoNonLocalFlowF,
-                                      gradient_x,
-                                      gradient_y,
-                                      consistencyThres):
 
-    imgH, imgW, _, _, nFrame = videoNonLocalFlowF.shape
-    KeySourceFrame = [0, nFrame // 2, nFrame - 1]
+# def get_KeySourceFrame_flowNN_gradient(sub,
+#                                       indFrame,
+#                                       mask,
+#                                       videoNonLocalFlowB,
+#                                       videoNonLocalFlowF,
+#                                       gradient_x,
+#                                       gradient_y,
+#                                       consistencyThres):
 
-    # Bool indicator of missing pixels at frame t
-    holepixPosInd = (sub[:, 2] == indFrame)
+#     imgH, imgW, _, _, nFrame = videoNonLocalFlowF.shape
+#     KeySourceFrame = [0, nFrame // 2, nFrame - 1]
 
-    # Hole pixel location at frame t, i.e. [x, y, t]
-    holepixPos = sub[holepixPosInd, :]
+#     # Bool indicator of missing pixels at frame t
+#     holepixPosInd = (sub[:, 2] == indFrame)
 
-    HaveKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3))
-    gradient_x_KeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
-    gradient_y_KeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
+#     # Hole pixel location at frame t, i.e. [x, y, t]
+#     holepixPos = sub[holepixPosInd, :]
 
-    for KeySourceFrameIdx in range(3):
+#     HaveKeySourceFrameFlowNN = np.zeros((imgH, imgW, 3))
+#     gradient_x_KeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
+#     gradient_y_KeySourceFrameFlowNN = np.zeros((imgH, imgW, 3, 3))
 
-        # flowF_neighbor
-        flowF_neighbor = copy.deepcopy(holepixPos)
-        flowF_neighbor = flowF_neighbor.astype(np.float32)
+#     for KeySourceFrameIdx in range(3):
 
-        flowF_vertical = videoNonLocalFlowF[:, :, 1, KeySourceFrameIdx, indFrame]
-        flowF_horizont = videoNonLocalFlowF[:, :, 0, KeySourceFrameIdx, indFrame]
-        flowB_vertical = videoNonLocalFlowB[:, :, 1, KeySourceFrameIdx, indFrame]
-        flowB_horizont = videoNonLocalFlowB[:, :, 0, KeySourceFrameIdx, indFrame]
+#         # flowF_neighbor
+#         flowF_neighbor = copy.deepcopy(holepixPos)
+#         flowF_neighbor = flowF_neighbor.astype(np.float32)
 
-        flowF_neighbor[:, 0] += flowF_vertical[holepixPos[:, 0], holepixPos[:, 1]]
-        flowF_neighbor[:, 1] += flowF_horizont[holepixPos[:, 0], holepixPos[:, 1]]
-        flowF_neighbor[:, 2] = KeySourceFrame[KeySourceFrameIdx]
+#         flowF_vertical = videoNonLocalFlowF[:, :, 1, KeySourceFrameIdx, indFrame]
+#         flowF_horizont = videoNonLocalFlowF[:, :, 0, KeySourceFrameIdx, indFrame]
+#         flowB_vertical = videoNonLocalFlowB[:, :, 1, KeySourceFrameIdx, indFrame]
+#         flowB_horizont = videoNonLocalFlowB[:, :, 0, KeySourceFrameIdx, indFrame]
 
-        # Round the forward flow neighbor location
-        flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
+#         flowF_neighbor[:, 0] += flowF_vertical[holepixPos[:, 0], holepixPos[:, 1]]
+#         flowF_neighbor[:, 1] += flowF_horizont[holepixPos[:, 0], holepixPos[:, 1]]
+#         flowF_neighbor[:, 2] = KeySourceFrame[KeySourceFrameIdx]
 
-        # Check the forawrd/backward consistency
-        IsConsist, _ = FBconsistCheck(flowF_neighbor, flowB_vertical,
-                                    flowB_horizont, holepixPos, consistencyThres)
+#         # Round the forward flow neighbor location
+#         flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
 
-        # Check out-of-boundary
-        ValidPos = np.logical_and(
-            np.logical_and(flow_neighbor_int[:, 0] >= 0,
-                           flow_neighbor_int[:, 0] < imgH - 1),
-            np.logical_and(flow_neighbor_int[:, 1] >= 0,
-                           flow_neighbor_int[:, 1] < imgW - 1))
+#         # Check the forawrd/backward consistency
+#         IsConsist, _ = FBconsistCheck(flowF_neighbor, flowB_vertical,
+#                                     flowB_horizont, holepixPos, consistencyThres)
 
-        holepixPos_ = copy.deepcopy(holepixPos)[ValidPos, :]
-        flow_neighbor_int = flow_neighbor_int[ValidPos, :]
-        flowF_neighbor = flowF_neighbor[ValidPos, :]
-        IsConsist = IsConsist[ValidPos]
+#         # Check out-of-boundary
+#         ValidPos = np.logical_and(
+#             np.logical_and(flow_neighbor_int[:, 0] >= 0,
+#                            flow_neighbor_int[:, 0] < imgH - 1),
+#             np.logical_and(flow_neighbor_int[:, 1] >= 0,
+#                            flow_neighbor_int[:, 1] < imgW - 1))
 
-        KnownInd = mask[flow_neighbor_int[:, 0],
-                        flow_neighbor_int[:, 1],
-                        KeySourceFrame[KeySourceFrameIdx]] == 0
+#         holepixPos_ = copy.deepcopy(holepixPos)[ValidPos, :]
+#         flow_neighbor_int = flow_neighbor_int[ValidPos, :]
+#         flowF_neighbor = flowF_neighbor[ValidPos, :]
+#         IsConsist = IsConsist[ValidPos]
 
-        KnownInd = np.logical_and(KnownInd, IsConsist)
+#         KnownInd = mask[flow_neighbor_int[:, 0],
+#                         flow_neighbor_int[:, 1],
+#                         KeySourceFrame[KeySourceFrameIdx]] == 0
 
-        gradient_x_KeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
-            copy.deepcopy(gradient_x[:, :, :, indFrame])
-        gradient_y_KeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
-            copy.deepcopy(gradient_y[:, :, :, indFrame])
+#         KnownInd = np.logical_and(KnownInd, IsConsist)
 
-        gradient_x_KeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
-                                        holepixPos_[KnownInd, 1],
-                                     :, KeySourceFrameIdx] = \
-                                 interp(gradient_x[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
-                                        flowF_neighbor[KnownInd, 1].reshape(-1),
-                                        flowF_neighbor[KnownInd, 0].reshape(-1))
+#         gradient_x_KeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
+#             copy.deepcopy(gradient_x[:, :, :, indFrame])
+#         gradient_y_KeySourceFrameFlowNN[:, :, :, KeySourceFrameIdx] = \
+#             copy.deepcopy(gradient_y[:, :, :, indFrame])
 
-        gradient_y_KeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
-                                        holepixPos_[KnownInd, 1],
-                                     :, KeySourceFrameIdx] = \
-                                 interp(gradient_y[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
-                                        flowF_neighbor[KnownInd, 1].reshape(-1),
-                                        flowF_neighbor[KnownInd, 0].reshape(-1))
+#         gradient_x_KeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
+#                                         holepixPos_[KnownInd, 1],
+#                                      :, KeySourceFrameIdx] = \
+#                                  interp(gradient_x[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
+#                                         flowF_neighbor[KnownInd, 1].reshape(-1),
+#                                         flowF_neighbor[KnownInd, 0].reshape(-1))
 
-        HaveKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
-                                 holepixPos_[KnownInd, 1],
-                                 KeySourceFrameIdx] = 1
+#         gradient_y_KeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
+#                                         holepixPos_[KnownInd, 1],
+#                                      :, KeySourceFrameIdx] = \
+#                                  interp(gradient_y[:, :, :, KeySourceFrame[KeySourceFrameIdx]],
+#                                         flowF_neighbor[KnownInd, 1].reshape(-1),
+#                                         flowF_neighbor[KnownInd, 0].reshape(-1))
 
-    return HaveKeySourceFrameFlowNN, gradient_x_KeySourceFrameFlowNN, gradient_y_KeySourceFrameFlowNN
+#         HaveKeySourceFrameFlowNN[holepixPos_[KnownInd, 0],
+#                                  holepixPos_[KnownInd, 1],
+#                                  KeySourceFrameIdx] = 1
+
+#     return HaveKeySourceFrameFlowNN, gradient_x_KeySourceFrameFlowNN, gradient_y_KeySourceFrameFlowNN
 
 class Progbar(object):
     """Displays a progress bar.

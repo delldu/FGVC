@@ -18,4 +18,4 @@ python video_completion.py \
        --path ../data/tennis \
        --path_mask ../data/tennis_mask \
        --outroot ../result/tennis_removal \
-       # --edge_guide
+       --edge_guide

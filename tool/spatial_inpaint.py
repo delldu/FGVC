@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 
-def spatial_inpaint(deepfill, mask, video_comp):
+def spatial_inpaint(deepfill, video_comp, mask):
 
     keyFrameInd = np.argmax(np.sum(np.sum(mask, axis=0), axis=0))
     with torch.no_grad():
