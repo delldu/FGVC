@@ -14,6 +14,8 @@ from skimage.color import rgb2gray, gray2rgb
 from .utils import create_mask
 import src.region_fill as rf
 
+import pdb
+
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, config, flist, edge_flist, mask_flist, augment=True, training=True):
         super(Dataset, self).__init__()
@@ -296,6 +298,8 @@ class Dataset(torch.utils.data.Dataset):
 
         img = self.compute_color(u, v)
 
+        pdb.set_trace()
+
         idx = np.repeat(idxUnknow[:, :, np.newaxis], 3, axis=2)
         img[idx] = 0
 
@@ -316,6 +320,8 @@ class Dataset(torch.utils.data.Dataset):
         v[nanIdx] = 0
 
         colorwheel = self.make_color_wheel()
+        pdb.set_trace()
+        
         ncols = np.size(colorwheel, 0)
 
         rad = np.sqrt(u**2+v**2)
@@ -342,6 +348,8 @@ class Dataset(torch.utils.data.Dataset):
 
             col[notidx] *= 0.75
             img[:, :, i] = np.uint8(np.floor(255 * col*(1-nanIdx)))
+
+        pdb.set_trace()
 
         return img
 

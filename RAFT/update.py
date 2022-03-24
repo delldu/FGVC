@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import pdb
 
 class FlowHead(nn.Module):
     def __init__(self, input_dim=128, hidden_dim=256):
@@ -9,6 +9,7 @@ class FlowHead(nn.Module):
         self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
         self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
         self.relu = nn.ReLU(inplace=True)
+        # ==> pdb.set_trace()
 
     def forward(self, x):
         return self.conv2(self.relu(self.conv1(x)))
@@ -19,6 +20,7 @@ class ConvGRU(nn.Module):
         self.convz = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
         self.convr = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
         self.convq = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
+        pdb.set_trace()
 
     def forward(self, h, x):
         hx = torch.cat([h, x], dim=1)
@@ -40,6 +42,7 @@ class SepConvGRU(nn.Module):
         self.convz2 = nn.Conv2d(hidden_dim+input_dim, hidden_dim, (5,1), padding=(2,0))
         self.convr2 = nn.Conv2d(hidden_dim+input_dim, hidden_dim, (5,1), padding=(2,0))
         self.convq2 = nn.Conv2d(hidden_dim+input_dim, hidden_dim, (5,1), padding=(2,0))
+        # ==> pdb.set_trace()
 
 
     def forward(self, h, x):
@@ -67,6 +70,7 @@ class SmallMotionEncoder(nn.Module):
         self.convf1 = nn.Conv2d(2, 64, 7, padding=3)
         self.convf2 = nn.Conv2d(64, 32, 3, padding=1)
         self.conv = nn.Conv2d(128, 80, 3, padding=1)
+        pdb.set_trace()
 
     def forward(self, flow, corr):
         cor = F.relu(self.convc1(corr))
@@ -85,6 +89,7 @@ class BasicMotionEncoder(nn.Module):
         self.convf1 = nn.Conv2d(2, 128, 7, padding=3)
         self.convf2 = nn.Conv2d(128, 64, 3, padding=1)
         self.conv = nn.Conv2d(64+192, 128-2, 3, padding=1)
+        # ==> pdb.set_trace()
 
     def forward(self, flow, corr):
         cor = F.relu(self.convc1(corr))
@@ -123,6 +128,7 @@ class BasicUpdateBlock(nn.Module):
             nn.Conv2d(128, 256, 3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 64*9, 1, padding=0))
+        # ==> pdb.set_trace()
 
     def forward(self, net, inp, corr, flow, upsample=True):
         motion_features = self.encoder(flow, corr)

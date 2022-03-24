@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
+import pdb
 
 
 def regionfill(I, mask, factor=1.0):

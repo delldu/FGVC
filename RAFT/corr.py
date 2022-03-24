@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from .utils.utils import bilinear_sampler, coords_grid
+import pdb
 
 try:
     import alt_cuda_corr
@@ -25,6 +26,7 @@ class CorrBlock:
         for i in range(self.num_levels-1):
             corr = F.avg_pool2d(corr, 2, stride=2)
             self.corr_pyramid.append(corr)
+        # ==> pdb.set_trace()
 
     def __call__(self, coords):
         r = self.radius
@@ -63,6 +65,8 @@ class CorrBlock:
 class CorrLayer(torch.autograd.Function):
     @staticmethod
     def forward(ctx, fmap1, fmap2, coords, r):
+        pdb.set_trace()
+
         fmap1 = fmap1.contiguous()
         fmap2 = fmap2.contiguous()
         coords = coords.contiguous()
@@ -90,6 +94,7 @@ class AlternateCorrBlock:
             fmap1 = F.avg_pool2d(fmap1, 2, stride=2)
             fmap2 = F.avg_pool2d(fmap2, 2, stride=2)
             self.pyramid.append((fmap1, fmap2))
+        pdb.set_trace()
 
     def __call__(self, coords):
 

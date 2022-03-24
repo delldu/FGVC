@@ -2,11 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import pdb
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_planes, planes, norm_fn='group', stride=1):
         super(ResidualBlock, self).__init__()
-  
+
+        # in_planes = 64
+        # planes = 64
+        # norm_fn = 'instance'
+        # stride = 1
+
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, padding=1, stride=stride)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1)
         self.relu = nn.ReLU(inplace=True)
@@ -43,7 +49,6 @@ class ResidualBlock(nn.Module):
         else:    
             self.downsample = nn.Sequential(
                 nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride), self.norm3)
-
 
     def forward(self, x):
         y = x
@@ -102,6 +107,7 @@ class BottleneckBlock(nn.Module):
         else:    
             self.downsample = nn.Sequential(
                 nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride), self.norm4)
+        pdb.set_trace()
 
 
     def forward(self, x):
@@ -155,6 +161,8 @@ class BasicEncoder(nn.Module):
                     nn.init.constant_(m.weight, 1)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+        # pdb.set_trace()
+
 
     def _make_layer(self, dim, stride=1):
         layer1 = ResidualBlock(self.in_planes, dim, self.norm_fn, stride=stride)

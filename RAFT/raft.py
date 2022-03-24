@@ -1,4 +1,8 @@
-import numpy as np
+# RAFT: Recurrent All-Pairs Field Transforms for Optical Flow
+# https://zhuanlan.zhihu.com/p/222012743
+
+
+# import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,6 +11,7 @@ from .update import BasicUpdateBlock, SmallUpdateBlock
 from .extractor import BasicEncoder, SmallEncoder
 from .corr import CorrBlock, AlternateCorrBlock
 from .utils.utils import bilinear_sampler, coords_grid, upflow8
+import pdb
 
 try:
     autocast = torch.cuda.amp.autocast
@@ -20,12 +25,13 @@ except:
         def __exit__(self, *args):
             pass
 
-
 class RAFT(nn.Module):
     def __init__(self, args):
         super(RAFT, self).__init__()
         self.args = args
-
+        # pdb.set_trace()
+        
+        # pp args.small -- False
         if args.small:
             self.hidden_dim = hdim = 96
             self.context_dim = cdim = 64
@@ -38,10 +44,10 @@ class RAFT(nn.Module):
             args.corr_levels = 4
             args.corr_radius = 4
 
-        if 'dropout' not in args._get_kwargs():
+        if 'dropout' not in args._get_kwargs(): # True
             args.dropout = 0
 
-        if 'alternate_corr' not in args._get_kwargs():
+        if 'alternate_corr' not in args._get_kwargs(): # True
             args.alternate_corr = False
 
         # feature network, context network, and update block
@@ -102,7 +108,7 @@ class RAFT(nn.Module):
 
         fmap1 = fmap1.float()
         fmap2 = fmap2.float()
-        if self.args.alternate_corr:
+        if self.args.alternate_corr: # False
             corr_fn = CorrBlockAlternate(fmap1, fmap2, radius=self.args.corr_radius)
         else:
             corr_fn = CorrBlock(fmap1, fmap2, radius=self.args.corr_radius)

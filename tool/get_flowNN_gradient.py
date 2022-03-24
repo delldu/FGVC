@@ -3,7 +3,7 @@ import os
 import cv2
 import copy
 import numpy as np
-import scipy.io as sio
+# import scipy.io as sio
 from utils.common_utils import interp, BFconsistCheck, \
     FBconsistCheck, consistCheck, get_KeySourceFrame_flowNN_gradient
 

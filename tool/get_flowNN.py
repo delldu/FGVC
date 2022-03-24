@@ -3,29 +3,35 @@ import os
 import cv2
 import copy
 import numpy as np
-import scipy.io as sio
+# import scipy.io as sio
 from utils.common_utils import interp, BFconsistCheck, \
     FBconsistCheck, consistCheck, get_KeySourceFrame_flowNN
+
+import pdb
 
 
 def get_flowNN(args,
                video,
                mask,
                videoFlowF,
-               videoFlowB,
-               videoNonLocalFlowF,
-               videoNonLocalFlowB):
+               videoFlowB):
 
     # video:      imgH x imgW x 3 x nFrame
     # mask:       imgH x imgW x nFrame
     # videoFlowF: imgH x imgW x 2 x (nFrame - 1)
     # videoFlowB: imgH x imgW x 2 x (nFrame - 1)
-    # videoNonLocalFlowF: imgH x imgW x 2 x 3 x nFrame
 
-    if args.Nonlocal:
-        num_candidate = 5
-    else:
-        num_candidate = 2
+    # video.shape -- (512, 960, 3, 10), [0.0, 1.0]
+
+    # mask.shape -- (512, 960, 10)
+    # (Pdb) mask.shape, mask.min(), mask.max()
+    # ((512, 960, 10), False, True)
+
+    # (Pdb) videoFlowF.shape, videoFlowF.min(), videoFlowF.max()
+    # ((512, 960, 2, 9), -1.8590815, 18.602379)
+
+    # pp args.Nonlocal --False
+    num_candidate = 2
     imgH, imgW, nFrame = mask.shape
     numPix = np.sum(mask)
 
@@ -411,33 +417,10 @@ def get_flowNN(args,
     # New mask
     mask_tofill = np.zeros((imgH, imgW, nFrame)).astype(np.bool)
 
+    # pdb.set_trace()
+    
     for indFrame in range(nFrame):
-        if args.Nonlocal:
-            consistencyMap[:, :, 2, indFrame], _ = consistCheck(
-                videoNonLocalFlowB[:, :, :, 0, indFrame],
-                videoNonLocalFlowF[:, :, :, 0, indFrame])
-            consistencyMap[:, :, 3, indFrame], _ = consistCheck(
-                videoNonLocalFlowB[:, :, :, 1, indFrame],
-                videoNonLocalFlowF[:, :, :, 1, indFrame])
-            consistencyMap[:, :, 4, indFrame], _ = consistCheck(
-                videoNonLocalFlowB[:, :, :, 2, indFrame],
-                videoNonLocalFlowF[:, :, :, 2, indFrame])
-
         HaveNN = np.zeros((imgH, imgW, num_candidate))
-
-        if args.Nonlocal:
-            HaveKeySourceFrameFlowNN, imgKeySourceFrameFlowNN = \
-                get_KeySourceFrame_flowNN(sub,
-                                          indFrame,
-                                          mask,
-                                          videoNonLocalFlowB,
-                                          videoNonLocalFlowF,
-                                          video,
-                                          args.consistencyThres)
-
-            HaveNN[:, :, 2] = HaveKeySourceFrameFlowNN[:, :, 0] == 1
-            HaveNN[:, :, 3] = HaveKeySourceFrameFlowNN[:, :, 1] == 1
-            HaveNN[:, :, 4] = HaveKeySourceFrameFlowNN[:, :, 2] == 1
 
         HaveNN[:, :, 0] = HaveFlowNN[:, :, indFrame, 0] == 1
         HaveNN[:, :, 1] = HaveFlowNN[:, :, indFrame, 1] == 1
@@ -445,34 +428,18 @@ def get_flowNN(args,
         NotHaveNN = np.logical_and(np.invert(HaveNN.astype(np.bool)),
                 np.repeat(np.expand_dims((mask[:, :, indFrame]), 2), num_candidate, axis=2))
 
-        if args.Nonlocal:
-            HaveNN_sum = np.logical_or.reduce((HaveNN[:, :, 0],
-                                               HaveNN[:, :, 1],
-                                               HaveNN[:, :, 2],
-                                               HaveNN[:, :, 3],
-                                               HaveNN[:, :, 4]))
-        else:
-            HaveNN_sum = np.logical_or.reduce((HaveNN[:, :, 0],
+        HaveNN_sum = np.logical_or.reduce((HaveNN[:, :, 0],
                                                HaveNN[:, :, 1]))
 
         videoCandidate = np.zeros((imgH, imgW, 3, num_candidate))
         videoCandidate[:, :, :, 0] = videoBN[:, :, :, indFrame]
         videoCandidate[:, :, :, 1] = videoFN[:, :, :, indFrame]
 
-        if args.Nonlocal:
-            videoCandidate[:, :, :, 2] = imgKeySourceFrameFlowNN[:, :, :, 0]
-            videoCandidate[:, :, :, 3] = imgKeySourceFrameFlowNN[:, :, :, 1]
-            videoCandidate[:, :, :, 4] = imgKeySourceFrameFlowNN[:, :, :, 2]
-
+        # args.alpha -- 0.1
         consistencyMap[:, :, :, indFrame] = np.exp( - consistencyMap[:, :, :, indFrame] / args.alpha)
 
         consistencyMap[NotHaveNN[:, :, 0], 0, indFrame] = 0
         consistencyMap[NotHaveNN[:, :, 1], 1, indFrame] = 0
-
-        if args.Nonlocal:
-            consistencyMap[NotHaveNN[:, :, 2], 2, indFrame] = 0
-            consistencyMap[NotHaveNN[:, :, 3], 3, indFrame] = 0
-            consistencyMap[NotHaveNN[:, :, 4], 4, indFrame] = 0
 
         # weights = (consistencyMap[HaveNN_sum, :, indFrame] * HaveNN[HaveNN_sum, :]) / ((consistencyMap[HaveNN_sum, :, indFrame] * HaveNN[HaveNN_sum, :]).sum(axis=1, keepdims=True) + 1e-16)
         weights = (consistencyMap[HaveNN_sum, :, indFrame] * HaveNN[HaveNN_sum, :]) / ((consistencyMap[HaveNN_sum, :, indFrame] * HaveNN[HaveNN_sum, :]).sum(axis=1, keepdims=True))

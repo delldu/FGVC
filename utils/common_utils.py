@@ -10,6 +10,7 @@ import time
 from PIL import Image
 import scipy.ndimage
 
+import pdb
 
 def combine(img1, img2, slope=0.55, band_width=0.015, offset=0):
 

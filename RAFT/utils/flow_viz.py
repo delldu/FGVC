@@ -29,6 +29,9 @@ def make_colorwheel():
     Returns:
         np.ndarray: Color wheel
     """
+    # xxxx8888
+    # Understanding Hue and Saturation, https://zhuanlan.zhihu.com/p/145178514
+
 
     RY = 15
     YG = 6

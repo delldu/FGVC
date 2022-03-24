@@ -3,13 +3,15 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import scipy.ndimage
 from scipy.sparse.linalg import spsolve
 from scipy import sparse
-import scipy.io as sio
+# import scipy.io as sio
 import numpy as np
 from PIL import Image
 import copy
 import cv2
 import os
 import argparse
+
+import pdb
 
 
 def sub2ind(pi, pj, imgH, imgW):
@@ -37,6 +39,7 @@ def Poisson_blend_img(imgTrg, imgSrc_gx, imgSrc_gy, holeMask, gradientMask=None,
     for ch in range(nCh):
 
         # solve Poisson equation
+        # xxxx8888
         x = scipy.sparse.linalg.lsqr(A, b[:, ch])[0]
 
         imgRecon[:, :, ch] = x.reshape(imgH, imgW)

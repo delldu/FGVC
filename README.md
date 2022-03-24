@@ -93,3 +93,7 @@ If you find this code useful for your research, please consider citing the follo
 ## Acknowledgments
 - Our flow edge completion network builds upon [EdgeConnect](https://github.com/knazeri/edge-connect).
 - Our image inpainting network is modified from [DFVI](https://github.com/nbei/Deep-Flow-Guided-Video-Inpainting).
+
+
+https://blog.csdn.net/qq_33431368/article/details/117173865
+https://towardsdatascience.com/implement-canny-edge-detection-from-scratch-with-pytorch-a1cccfa58bed

@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import scipy.ndimage
 from scipy.sparse.linalg import spsolve
 from scipy import sparse
-import scipy.io as sio
+# import scipy.io as sio
 import numpy as np
 from PIL import Image
 import copy
@@ -11,6 +11,7 @@ import cv2
 import os
 import argparse
 
+import pdb
 
 def sub2ind(pi, pj, imgH, imgW):
     return pj + pi * imgW
@@ -27,12 +28,14 @@ def Poisson_blend(imgTrg, imgSrc_gx, imgSrc_gy, holeMask, edge=None):
     imgRecon = np.zeros((imgH, imgW, nCh), dtype=np.float32)
 
     # prepare discrete Poisson equation
+    # xxxx8888
     A, b = solvePoisson(holeMask, imgSrc_gx, imgSrc_gy, imgTrg, edge)
 
     # Independently process each channel
     for ch in range(nCh):
 
         # solve Poisson equation
+        # xxxx8888
         x = scipy.sparse.linalg.lsqr(A, b[:, ch, None])[0]
         imgRecon[:, :, ch] = x.reshape(imgH, imgW)
 
@@ -63,7 +66,23 @@ def Poisson_blend(imgTrg, imgSrc_gx, imgSrc_gy, holeMask, edge=None):
 
     return imgBlend
 
+# xxxx8888
 def solvePoisson(holeMask, imgSrc_gx, imgSrc_gy, imgTrg, edge):
+    # holeMask.shape -- (512, 960)
+    # Image.fromarray(holeMask).show()
+
+    # imgSrc_gx.shape, imgSrc_gx.min(), imgSrc_gx.max()
+    # ((512, 959, 2), -0.075867414, 0.11128187)
+
+    # imgSrc_gy.shape, imgSrc_gy.min(), imgSrc_gy.max()
+    # ((511, 960, 2), -0.12067032, 0.09233618)
+
+    # imgTrg.shape, imgTrg.min(), imgTrg.max()
+    # ((512, 960, 2), -28.853868, 7.3148365)
+
+    # edge.shape, edge.min(), edge.max()
+    # ((512, 960), 0.0, 0.0)
+
 
     # Prepare the linear system of equations for Poisson blending
     imgH, imgW = holeMask.shape

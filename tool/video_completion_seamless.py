@@ -29,8 +29,6 @@ from frame_inpaint import DeepFillv1
 from edgeconnect.networks import EdgeGenerator_
 import pdb
 
-from torchvision import transforms as T
-
 def to_tensor(img):
     img = Image.fromarray(img)
     img_t = F.to_tensor(img).float()
@@ -137,8 +135,6 @@ def calculate_flow(args, model, video, mode):
 
             flow = flow[0].permute(1, 2, 0).cpu().numpy()
             # flow.shape -- (512, 960, 2)
-            # flow.max() == 10.23984, flow.min() == -19.885592
-
 
             # flow[..., None].shape -- (512, 960, 2, 1)
             Flow = np.concatenate((Flow, flow[..., None]), axis=-1)
@@ -147,8 +143,6 @@ def calculate_flow(args, model, video, mode):
             # Flow visualization.
             flow_img = utils.flow_viz.flow_to_image(flow)
             flow_img = Image.fromarray(flow_img)
-
-            # flow_img.show()
 
             # Saves the flow and flow_img.
             flow_img.save(os.path.join(args.outroot, 'flow', mode + '_png', '%05d.png'%i))
@@ -237,8 +231,6 @@ def complete_flow(args, corrFlow, flow_mask, mode, edge=None):
             imgSrc_gy = imgSrc_gy[0 : imgH - 1, :, :]
             imgSrc_gx = gradient[:, :, 0 : 2]
             imgSrc_gx = imgSrc_gx[:, 0 : imgW - 1, :]
-
-            # xxxx8888
             compFlow[:, :, :, i] = Poisson_blend(flow, imgSrc_gx, imgSrc_gy, flow_mask_img, edge[:, :, i])
 
         else:
@@ -274,7 +266,6 @@ def edge_completion(args, EdgeGenerator, corrFlow, flow_mask, mode):
         flow_img_gray = (corrFlow[:, :, 0, i] ** 2 + corrFlow[:, :, 1, i] ** 2) ** 0.5
         flow_img_gray = flow_img_gray / flow_img_gray.max()
 
-        # xxxx8888
         edge_corr = canny(flow_img_gray, sigma=2, mask=(1 - flow_mask_img).astype(np.bool))
         edge_completed = infer(args, EdgeGenerator, torch.device('cuda:0'), flow_img_gray, edge_corr, flow_mask_img)
         Edge = np.concatenate((Edge, edge_completed[..., None]), axis=-1)
@@ -282,8 +273,9 @@ def edge_completion(args, EdgeGenerator, corrFlow, flow_mask, mode):
     return Edge
 
 
-def video_completion(args):
 
+def video_completion_seamless(args):
+    pass
     # Flow model.
     RAFT_model = initialize_RAFT(args)
 
@@ -300,27 +292,19 @@ def video_completion(args):
     for filename in sorted(filename_list):
         video.append(torch.from_numpy(np.array(Image.open(filename)).astype(np.uint8)).permute(2, 0, 1).float())
 
-
-    # video format: RGB -> BRG
     video = torch.stack(video, dim=0)
     video = video.to('cuda')
-
-    # video.size() -- torch.Size([70, 3, 512, 960])
-    # video.min(), video.max()
-    # (tensor(0., device='cuda:0'), tensor(255., device='cuda:0'))
-    # (Pdb) video.dtype -- torch.float32
+    pdb.set_trace()
 
     # Calcutes the corrupted flow.
     corrFlowF = calculate_flow(args, RAFT_model, video, 'forward')
     corrFlowB = calculate_flow(args, RAFT_model, video, 'backward')
-    # corrFlowF.shape -- (512, 960, 2, 69)
+    print('\nFinish flow prediction.')
 
-    print('Finish flow prediction.')
+    pdb.set_trace()
 
     # Makes sure video is in BGR (opencv) format.
     video = video.permute(2, 3, 1, 0).cpu().numpy()[:, :, ::-1, :] / 255.
-    # video.shape -- (512, 960, 3, 70)
-    # video.min(), video.max() -- (0.0, 1.0)
 
     if args.mode == 'video_extrapolation':
 
@@ -331,39 +315,38 @@ def video_completion(args):
         # mask indicating the missing region in the video.
         mask = np.tile(flow_mask[..., None], (1, 1, nFrame))
         flow_mask = np.tile(flow_mask[..., None], (1, 1, nFrame))
+        mask_dilated = np.tile(mask_dilated[..., None], (1, 1, nFrame))
 
-    else: # object_removal
+    else: # object_removal ?
         # Loads masks.
         filename_list = glob.glob(os.path.join(args.path_mask, '*.png')) + \
                         glob.glob(os.path.join(args.path_mask, '*.jpg'))
 
         mask = []
+        mask_dilated = []
         flow_mask = []
         for filename in sorted(filename_list):
             mask_img = np.array(Image.open(filename).convert('L'))
-            mask.append(mask_img)
 
             # Dilate 15 pixel so that all known pixel is trustworthy
-            # xxxx8888
             flow_mask_img = scipy.ndimage.binary_dilation(mask_img, iterations=15)
             # Close the small holes inside the foreground objects
-
-            # xxxx8888
             flow_mask_img = cv2.morphologyEx(flow_mask_img.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((21, 21),np.uint8)).astype(np.bool)
-
-            # xxxx8888
             flow_mask_img = scipy.ndimage.binary_fill_holes(flow_mask_img).astype(np.bool)
             flow_mask.append(flow_mask_img)
 
-            # Image.fromarray(mask_img.astype('uint8')).show()
-            # pdb.set_trace()
+            mask_img = scipy.ndimage.binary_dilation(mask_img, iterations=5)
+            mask_img = scipy.ndimage.binary_fill_holes(mask_img).astype(np.bool)
+            mask.append(mask_img)
+            mask_dilated.append(gradient_mask(mask_img))
 
         # mask indicating the missing region in the video.
         mask = np.stack(mask, -1).astype(np.bool)
+        mask_dilated = np.stack(mask_dilated, -1).astype(np.bool)
         flow_mask = np.stack(flow_mask, -1).astype(np.bool)
+
         pdb.set_trace()
 
-    # pp args.edge_guide 
     if args.edge_guide:
         # Edge completion model.
         EdgeGenerator = EdgeGenerator_()
@@ -375,67 +358,117 @@ def video_completion(args):
         # Edge completion.
         FlowF_edge = edge_completion(args, EdgeGenerator, corrFlowF, flow_mask, 'forward')
         FlowB_edge = edge_completion(args, EdgeGenerator, corrFlowB, flow_mask, 'backward')
-
-        # FlowF_edge.shape -- (512, 960, 9), 
-        # FlowF_edge.max(), FlowF_edge.min()
-        # (0.0, 0.0)
-        # FlowB_edge.max(), FlowB_edge.min()
-        # (1.0, 0.0)
-        print('Finish edge completion.')
+        print('\nFinish edge completion.')
     else:
         FlowF_edge, FlowB_edge = None, None
 
     # Completes the flow.
     videoFlowF = complete_flow(args, corrFlowF, flow_mask, 'forward', FlowF_edge)
     videoFlowB = complete_flow(args, corrFlowB, flow_mask, 'backward', FlowB_edge)
-    # videoFlowF.shape -- (512, 960, 2, 9)
-    print('Finish flow completion.')
+    print('\nFinish flow completion.')
+
+    pdb.set_trace()
+
+    # Prepare gradients
+    gradient_x = np.empty(((imgH, imgW, 3, 0)), dtype=np.float32)
+    gradient_y = np.empty(((imgH, imgW, 3, 0)), dtype=np.float32)
+
+    for indFrame in range(nFrame):
+        img = video[:, :, :, indFrame]
+        img[mask[:, :, indFrame], :] = 0
+        img = cv2.inpaint((img * 255).astype(np.uint8), mask[:, :, indFrame].astype(np.uint8), 3, cv2.INPAINT_TELEA).astype(np.float32)  / 255.
+
+        gradient_x_ = np.concatenate((np.diff(img, axis=1), np.zeros((imgH, 1, 3), dtype=np.float32)), axis=1)
+        gradient_y_ = np.concatenate((np.diff(img, axis=0), np.zeros((1, imgW, 3), dtype=np.float32)), axis=0)
+        gradient_x = np.concatenate((gradient_x, gradient_x_.reshape(imgH, imgW, 3, 1)), axis=-1)
+        gradient_y = np.concatenate((gradient_y, gradient_y_.reshape(imgH, imgW, 3, 1)), axis=-1)
+
+        gradient_x[mask_dilated[:, :, indFrame], :, indFrame] = 0
+        gradient_y[mask_dilated[:, :, indFrame], :, indFrame] = 0
+
+    pdb.set_trace()
 
     iter = 0
-
-    video_comp = video
     mask_tofill = mask
+    gradient_x_filled = gradient_x # corrupted gradient_x, mask_gradient indicates the missing gradient region
+    gradient_y_filled = gradient_y # corrupted gradient_y, mask_gradient indicates the missing gradient region
+    mask_gradient = mask_dilated
+    video_comp = video
 
     # Image inpainting model.
-    # imgH, imgW -- (512, 960)
     deepfill = DeepFillv1(pretrained_model=args.deepfill_model, image_shape=[imgH, imgW])
 
     # We iteratively complete the video.
-    while(np.sum(mask_tofill) > 0):
-        create_dir(os.path.join(args.outroot, 'frame_comp_' + str(iter)))
+    while(np.sum(mask) > 0):
+        create_dir(os.path.join(args.outroot, 'frame_seamless_comp_' + str(iter)))
 
-        # Color propagation.
-        # video_comp.shape -- (512, 960, 3, 10)
-        # mask_tofill.shape -- (512, 960, 10)
-        # videoFlowF.shape -- (512, 960, 2, 9)
+        # Gradient propagation.
+        gradient_x_filled, gradient_y_filled, mask_gradient = \
+            get_flowNN_gradient(args,
+                                gradient_x_filled,
+                                gradient_y_filled,
+                                mask,
+                                mask_gradient,
+                                videoFlowF,
+                                videoFlowB,
+                                None,
+                                None)
 
-        video_comp, mask_tofill, _ = get_flowNN(args,
-                                      video_comp,
-                                      mask_tofill,
-                                      videoFlowF,
-                                      videoFlowB)
+        # if there exist holes in mask, Poisson blending will fail. So I did this trick. I sacrifice some value. Another solution is to modify Poisson blending.
+        for indFrame in range(nFrame):
+            mask_gradient[:, :, indFrame] = scipy.ndimage.binary_fill_holes(mask_gradient[:, :, indFrame]).astype(np.bool)
 
-        for i in range(nFrame): # nFrame -- 10
-            # xxxx8888
-            mask_tofill[:, :, i] = scipy.ndimage.binary_dilation(mask_tofill[:, :, i], iterations=2)
-            img = video_comp[:, :, :, i] * 255
-            # Green indicates the regions that are not filled yet.
-            img[mask_tofill[:, :, i]] = [0, 255, 0]
-            cv2.imwrite(os.path.join(args.outroot, 'frame_comp_' + str(iter), '%05d.png'%i), img)
+        # After one gradient propagation iteration
+        # gradient --> RGB
+        for indFrame in range(nFrame):
+            print("Poisson blending frame {0:3d}".format(indFrame))
+
+            if mask[:, :, indFrame].sum() > 0:
+                try:
+                    frameBlend, UnfilledMask = Poisson_blend_img(video_comp[:, :, :, indFrame], gradient_x_filled[:, 0 : imgW - 1, :, indFrame], gradient_y_filled[0 : imgH - 1, :, :, indFrame], mask[:, :, indFrame], mask_gradient[:, :, indFrame])
+                    # UnfilledMask = scipy.ndimage.binary_fill_holes(UnfilledMask).astype(np.bool)
+                except:
+                    frameBlend, UnfilledMask = video_comp[:, :, :, indFrame], mask[:, :, indFrame]
+
+                frameBlend = np.clip(frameBlend, 0, 1.0)
+                tmp = cv2.inpaint((frameBlend * 255).astype(np.uint8), UnfilledMask.astype(np.uint8), 3, cv2.INPAINT_TELEA).astype(np.float32) / 255.
+                frameBlend[UnfilledMask, :] = tmp[UnfilledMask, :]
+
+                video_comp[:, :, :, indFrame] = frameBlend
+                mask[:, :, indFrame] = UnfilledMask
+
+                frameBlend_ = copy.deepcopy(frameBlend)
+                # Green indicates the regions that are not filled yet.
+                frameBlend_[mask[:, :, indFrame], :] = [0, 1., 0]
+            else:
+                frameBlend_ = video_comp[:, :, :, indFrame]
+
+            cv2.imwrite(os.path.join(args.outroot, 'frame_seamless_comp_' + str(iter), '%05d.png'%indFrame), frameBlend_ * 255.)
 
         # video_comp_ = (video_comp * 255).astype(np.uint8).transpose(3, 0, 1, 2)[:, :, :, ::-1]
-        # imageio.mimwrite(os.path.join(args.outroot, 'frame_comp_' + str(iter), 'intermediate_{0}.mp4'.format(str(iter))), video_comp_, fps=12, quality=8, macro_block_size=1)
-        # imageio.mimsave(os.path.join(args.outroot, 'frame_comp_' + str(iter), 'intermediate_{0}.gif'.format(str(iter))), video_comp_, format='gif', fps=12)
-        mask_tofill, video_comp = spatial_inpaint(deepfill, mask_tofill, video_comp)
+        # imageio.mimwrite(os.path.join(args.outroot, 'frame_seamless_comp_' + str(iter), 'intermediate_{0}.mp4'.format(str(iter))), video_comp_, fps=12, quality=8, macro_block_size=1)
+        # imageio.mimsave(os.path.join(args.outroot, 'frame_seamless_comp_' + str(iter), 'intermediate_{0}.gif'.format(str(iter))), video_comp_, format='gif', fps=12)
+
+        mask, video_comp = spatial_inpaint(deepfill, mask, video_comp)
         iter += 1
 
-    create_dir(os.path.join(args.outroot, 'frame_comp_' + 'final'))
+        # Re-calculate gradient_x/y_filled and mask_gradient
+        for indFrame in range(nFrame):
+            mask_gradient[:, :, indFrame] = gradient_mask(mask[:, :, indFrame])
+
+            gradient_x_filled[:, :, :, indFrame] = np.concatenate((np.diff(video_comp[:, :, :, indFrame], axis=1), np.zeros((imgH, 1, 3), dtype=np.float32)), axis=1)
+            gradient_y_filled[:, :, :, indFrame] = np.concatenate((np.diff(video_comp[:, :, :, indFrame], axis=0), np.zeros((1, imgW, 3), dtype=np.float32)), axis=0)
+
+            gradient_x_filled[mask_gradient[:, :, indFrame], :, indFrame] = 0
+            gradient_y_filled[mask_gradient[:, :, indFrame], :, indFrame] = 0
+
+    create_dir(os.path.join(args.outroot, 'frame_seamless_comp_' + 'final'))
     video_comp_ = (video_comp * 255).astype(np.uint8).transpose(3, 0, 1, 2)[:, :, :, ::-1]
     for i in range(nFrame):
         img = video_comp[:, :, :, i] * 255
-        cv2.imwrite(os.path.join(args.outroot, 'frame_comp_' + 'final', '%05d.png'%i), img)
-        imageio.mimwrite(os.path.join(args.outroot, 'frame_comp_' + 'final', 'final.mp4'), video_comp_, fps=12, quality=8, macro_block_size=1)
-        # imageio.mimsave(os.path.join(args.outroot, 'frame_comp_' + 'final', 'final.gif'), video_comp_, format='gif', fps=12)
+        cv2.imwrite(os.path.join(args.outroot, 'frame_seamless_comp_' + 'final', '%05d.png'%i), img)
+        imageio.mimwrite(os.path.join(args.outroot, 'frame_seamless_comp_' + 'final', 'final.mp4'), video_comp_, fps=12, quality=8, macro_block_size=1)
+        # imageio.mimsave(os.path.join(args.outroot, 'frame_seamless_comp_' + 'final', 'final.gif'), video_comp_, format='gif', fps=12)
 
 
 def main(args):
@@ -444,7 +477,7 @@ def main(args):
         "Accepted modes: 'object_removal', 'video_extrapolation', but input is %s"
     ) % mode
 
-    video_completion(args)
+    video_completion_seamless(args)
 
 
 if __name__ == '__main__':
