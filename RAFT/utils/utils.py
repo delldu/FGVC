@@ -5,23 +5,30 @@ from scipy import interpolate
 
 
 class InputPadder:
-    """ Pads images such that dimensions are divisible by 8 """
-    def __init__(self, dims, mode='sintel'):
+    """Pads images such that dimensions are divisible by 8"""
+
+    def __init__(self, dims, mode="sintel"):
         self.ht, self.wd = dims[-2:]
         pad_ht = (((self.ht // 8) + 1) * 8 - self.ht) % 8
         pad_wd = (((self.wd // 8) + 1) * 8 - self.wd) % 8
-        if mode == 'sintel':
-            self._pad = [pad_wd//2, pad_wd - pad_wd//2, pad_ht//2, pad_ht - pad_ht//2]
+        if mode == "sintel":
+            self._pad = [
+                pad_wd // 2,
+                pad_wd - pad_wd // 2,
+                pad_ht // 2,
+                pad_ht - pad_ht // 2,
+            ]
         else:
-            self._pad = [pad_wd//2, pad_wd - pad_wd//2, 0, pad_ht]
+            self._pad = [pad_wd // 2, pad_wd - pad_wd // 2, 0, pad_ht]
 
     def pad(self, *inputs):
-        return [F.pad(x, self._pad, mode='replicate') for x in inputs]
+        return [F.pad(x, self._pad, mode="replicate") for x in inputs]
 
-    def unpad(self,x):
+    def unpad(self, x):
         ht, wd = x.shape[-2:]
-        c = [self._pad[2], ht-self._pad[3], self._pad[0], wd-self._pad[1]]
-        return x[..., c[0]:c[1], c[2]:c[3]]
+        c = [self._pad[2], ht - self._pad[3], self._pad[0], wd - self._pad[1]]
+        return x[..., c[0] : c[1], c[2] : c[3]]
+
 
 # def forward_interpolate(flow):
 #     flow = flow.detach().cpu().numpy()
@@ -32,7 +39,7 @@ class InputPadder:
 
 #     x1 = x0 + dx
 #     y1 = y0 + dy
-    
+
 #     x1 = x1.reshape(-1)
 #     y1 = y1.reshape(-1)
 #     dx = dx.reshape(-1)
@@ -54,12 +61,12 @@ class InputPadder:
 #     return torch.from_numpy(flow).float()
 
 
-def bilinear_sampler(img, coords, mode='bilinear', mask=False):
-    """ Wrapper for grid_sample, uses pixel coordinates """
+def bilinear_sampler(img, coords, mode="bilinear", mask=False):
+    """Wrapper for grid_sample, uses pixel coordinates"""
     H, W = img.shape[-2:]
-    xgrid, ygrid = coords.split([1,1], dim=-1)
-    xgrid = 2*xgrid/(W-1) - 1
-    ygrid = 2*ygrid/(H-1) - 1
+    xgrid, ygrid = coords.split([1, 1], dim=-1)
+    xgrid = 2 * xgrid / (W - 1) - 1
+    ygrid = 2 * ygrid / (H - 1) - 1
 
     grid = torch.cat([xgrid, ygrid], dim=-1)
     img = F.grid_sample(img, grid, align_corners=True)

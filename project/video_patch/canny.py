@@ -157,7 +157,11 @@ class CannyFilter(nn.Module):
         # gaussian
         gaussian_2D = get_gaussian_kernel(k_gaussian, mu, sigma)
         self.gaussian_filter = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=k_gaussian, padding=k_gaussian // 2, bias=False
+            in_channels=1,
+            out_channels=1,
+            kernel_size=k_gaussian,
+            padding=k_gaussian // 2,
+            bias=False,
         )
         self.gaussian_filter.weight.requires_grad = False
         self.gaussian_filter.weight[:] = torch.from_numpy(gaussian_2D)
@@ -165,13 +169,21 @@ class CannyFilter(nn.Module):
         # sobel
         sobel_2D = get_sobel_kernel(k_sobel)
         self.sobel_filter_x = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=k_sobel, padding=k_sobel // 2, bias=False
+            in_channels=1,
+            out_channels=1,
+            kernel_size=k_sobel,
+            padding=k_sobel // 2,
+            bias=False,
         )
         self.sobel_filter_x.weight.requires_grad = False
         self.sobel_filter_x.weight[:] = torch.from_numpy(sobel_2D)
 
         self.sobel_filter_y = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=k_sobel, padding=k_sobel // 2, bias=False
+            in_channels=1,
+            out_channels=1,
+            kernel_size=k_sobel,
+            padding=k_sobel // 2,
+            bias=False,
         )
         self.sobel_filter_y.weight.requires_grad = False
         self.sobel_filter_y.weight[:] = torch.from_numpy(sobel_2D.T)
@@ -273,7 +285,7 @@ class CannyFilter(nn.Module):
 
 
 if __name__ == "__main__":
-    model = T.GaussianBlur(kernel_size=3) # Pytorch 1.7.0
+    model = T.GaussianBlur(kernel_size=3)  # Pytorch 1.7.0
     # model = CannyFilter()
     model = model.cuda()
     model.eval()

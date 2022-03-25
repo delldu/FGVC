@@ -16,6 +16,7 @@ import src.region_fill as rf
 
 import pdb
 
+
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, config, flist, edge_flist, mask_flist, augment=True, training=True):
         super(Dataset, self).__init__()
@@ -34,8 +35,6 @@ class Dataset(torch.utils.data.Dataset):
         self.mask = config.MASK
         self.nms = config.NMS
 
-
-
         # in test mode, there's a one-to-one relationship between mask and image
         # masks are loaded non random
         if config.MODE == 2:
@@ -48,7 +47,7 @@ class Dataset(torch.utils.data.Dataset):
         try:
             item = self.load_item(index)
         except:
-            print('loading error: ' + self.data[index])
+            print("loading error: " + self.data[index])
             item = self.load_item(0)
 
         return item
@@ -59,7 +58,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def load_item(self, index):
         size = self.input_size
-        factor = 1.
+        factor = 1.0
         if self.flo == 0:
 
             # load image
@@ -109,7 +108,6 @@ class Dataset(torch.utils.data.Dataset):
             img_filled[:, :, 0] = rf.regionfill(img[:, :, 0], mask)
             img_filled[:, :, 1] = rf.regionfill(img[:, :, 1], mask)
 
-
         # augment data
         if self.augment and np.random.binomial(1, 0.5) > 0:
             img = img[:, ::-1, ...].copy()
@@ -118,7 +116,14 @@ class Dataset(torch.utils.data.Dataset):
             edge = edge[:, ::-1, ...]
             mask = mask[:, ::-1, ...]
 
-        return self.to_tensor(img), self.to_tensor(img_filled), self.to_tensor(img_gray), self.to_tensor(edge), self.to_tensor(mask), factor
+        return (
+            self.to_tensor(img),
+            self.to_tensor(img_filled),
+            self.to_tensor(img_gray),
+            self.to_tensor(edge),
+            self.to_tensor(mask),
+            factor,
+        )
 
     def load_edge(self, img, index, mask):
         sigma = self.sigma
@@ -169,14 +174,21 @@ class Dataset(torch.utils.data.Dataset):
         # half
         if mask_type == 2:
             # randomly choose right or left
-            return create_mask(imgw, imgh, imgw // 2, imgh, 0 if random.random() < 0.5 else imgw // 2, 0)
+            return create_mask(
+                imgw,
+                imgh,
+                imgw // 2,
+                imgh,
+                0 if random.random() < 0.5 else imgw // 2,
+                0,
+            )
 
         # external
         if mask_type == 3:
             mask_index = random.randint(0, len(self.mask_data) - 1)
             mask = imread(self.mask_data[mask_index])
             mask = self.resize(mask, imgh, imgw, centerCrop=False)
-            mask = (mask > 0).astype(np.uint8) * 255       # threshold due to interpolation
+            mask = (mask > 0).astype(np.uint8) * 255  # threshold due to interpolation
             return mask
 
         # test mode: load mask non random
@@ -189,7 +201,7 @@ class Dataset(torch.utils.data.Dataset):
             return mask
 
     def to_tensor(self, img):
-        if (len(img.shape) == 3 and img.shape[2] == 2):
+        if len(img.shape) == 3 and img.shape[2] == 2:
             return F.to_tensor(img).float()
         img = Image.fromarray(img)
         img_t = F.to_tensor(img).float()
@@ -203,7 +215,7 @@ class Dataset(torch.utils.data.Dataset):
             side = np.minimum(imgh, imgw)
             j = (imgh - side) // 2
             i = (imgw - side) // 2
-            img = img[j:j + side, i:i + side, ...]
+            img = img[j : j + side, i : i + side, ...]
 
         img = scipy.misc.imresize(img, [height, width])
 
@@ -217,25 +229,25 @@ class Dataset(torch.utils.data.Dataset):
         if flo == 0:
             if isinstance(flist, str):
                 if os.path.isdir(flist):
-                    flist = list(glob.glob(flist + '/*.jpg')) + list(glob.glob(flist + '/*.png'))
+                    flist = list(glob.glob(flist + "/*.jpg")) + list(glob.glob(flist + "/*.png"))
                     flist.sort()
                     return flist
 
                 if os.path.isfile(flist):
                     try:
-                        return np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
+                        return np.genfromtxt(flist, dtype=np.str, encoding="utf-8")
                     except:
                         return [flist]
         else:
             if isinstance(flist, str):
                 if os.path.isdir(flist):
-                    flist = list(glob.glob(flist + '/*.flo'))
+                    flist = list(glob.glob(flist + "/*.flo"))
                     flist.sort()
                     return flist
 
                 if os.path.isfile(flist):
                     try:
-                        return np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
+                        return np.genfromtxt(flist, dtype=np.str, encoding="utf-8")
                     except:
                         return [flist]
 
@@ -243,20 +255,16 @@ class Dataset(torch.utils.data.Dataset):
 
     def create_iterator(self, batch_size):
         while True:
-            sample_loader = DataLoader(
-                dataset=self,
-                batch_size=batch_size,
-                drop_last=True
-            )
+            sample_loader = DataLoader(dataset=self, batch_size=batch_size, drop_last=True)
 
             for item in sample_loader:
                 yield item
 
     def readFlow(self, fn):
-        with open(fn, 'rb') as f:
+        with open(fn, "rb") as f:
             magic = np.fromfile(f, np.float32, count=1)
             if 202021.25 != magic:
-                print('Magic number incorrect. Invalid .flo file')
+                print("Magic number incorrect. Invalid .flo file")
                 return None
             else:
                 w = np.fromfile(f, np.int32, count=1)
@@ -273,10 +281,10 @@ class Dataset(torch.utils.data.Dataset):
         u = flow[:, :, 0]
         v = flow[:, :, 1]
 
-        maxu = -999.
-        maxv = -999.
-        minu = 999.
-        minv = 999.
+        maxu = -999.0
+        maxv = -999.0
+        minu = 999.0
+        minv = 999.0
 
         idxUnknow = (abs(u) > UNKNOWN_FLOW_THRESH) | (abs(v) > UNKNOWN_FLOW_THRESH)
         u[idxUnknow] = 0
@@ -288,13 +296,13 @@ class Dataset(torch.utils.data.Dataset):
         maxv = max(maxv, np.max(v))
         minv = min(minv, np.min(v))
 
-        rad = np.sqrt(u ** 2 + v ** 2)
+        rad = np.sqrt(u**2 + v**2)
         maxrad = max(-1, np.max(rad))
 
         # print("max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv))
 
-        u = u/(maxrad + np.finfo(float).eps)
-        v = v/(maxrad + np.finfo(float).eps)
+        u = u / (maxrad + np.finfo(float).eps)
+        v = v / (maxrad + np.finfo(float).eps)
 
         img = self.compute_color(u, v)
 
@@ -304,7 +312,6 @@ class Dataset(torch.utils.data.Dataset):
         img[idx] = 0
 
         return np.uint8(img)
-
 
     def compute_color(self, u, v):
         """
@@ -321,38 +328,37 @@ class Dataset(torch.utils.data.Dataset):
 
         colorwheel = self.make_color_wheel()
         pdb.set_trace()
-        
+
         ncols = np.size(colorwheel, 0)
 
-        rad = np.sqrt(u**2+v**2)
+        rad = np.sqrt(u**2 + v**2)
 
         a = np.arctan2(-v, -u) / np.pi
 
-        fk = (a+1) / 2 * (ncols - 1) + 1
+        fk = (a + 1) / 2 * (ncols - 1) + 1
 
         k0 = np.floor(fk).astype(int)
 
         k1 = k0 + 1
-        k1[k1 == ncols+1] = 1
+        k1[k1 == ncols + 1] = 1
         f = fk - k0
 
-        for i in range(0, np.size(colorwheel,1)):
+        for i in range(0, np.size(colorwheel, 1)):
             tmp = colorwheel[:, i]
-            col0 = tmp[k0-1] / 255
-            col1 = tmp[k1-1] / 255
-            col = (1-f) * col0 + f * col1
+            col0 = tmp[k0 - 1] / 255
+            col1 = tmp[k1 - 1] / 255
+            col = (1 - f) * col0 + f * col1
 
             idx = rad <= 1
-            col[idx] = 1-rad[idx]*(1-col[idx])
+            col[idx] = 1 - rad[idx] * (1 - col[idx])
             notidx = np.logical_not(idx)
 
             col[notidx] *= 0.75
-            img[:, :, i] = np.uint8(np.floor(255 * col*(1-nanIdx)))
+            img[:, :, i] = np.uint8(np.floor(255 * col * (1 - nanIdx)))
 
         pdb.set_trace()
 
         return img
-
 
     def make_color_wheel(self):
         """
@@ -374,39 +380,39 @@ class Dataset(torch.utils.data.Dataset):
 
         # RY
         colorwheel[0:RY, 0] = 255
-        colorwheel[0:RY, 1] = np.transpose(np.floor(255*np.arange(0, RY) / RY))
+        colorwheel[0:RY, 1] = np.transpose(np.floor(255 * np.arange(0, RY) / RY))
         col += RY
 
         # YG
-        colorwheel[col:col+YG, 0] = 255 - np.transpose(np.floor(255*np.arange(0, YG) / YG))
-        colorwheel[col:col+YG, 1] = 255
+        colorwheel[col : col + YG, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, YG) / YG))
+        colorwheel[col : col + YG, 1] = 255
         col += YG
 
         # GC
-        colorwheel[col:col+GC, 1] = 255
-        colorwheel[col:col+GC, 2] = np.transpose(np.floor(255*np.arange(0, GC) / GC))
+        colorwheel[col : col + GC, 1] = 255
+        colorwheel[col : col + GC, 2] = np.transpose(np.floor(255 * np.arange(0, GC) / GC))
         col += GC
 
         # CB
-        colorwheel[col:col+CB, 1] = 255 - np.transpose(np.floor(255*np.arange(0, CB) / CB))
-        colorwheel[col:col+CB, 2] = 255
+        colorwheel[col : col + CB, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, CB) / CB))
+        colorwheel[col : col + CB, 2] = 255
         col += CB
 
         # BM
-        colorwheel[col:col+BM, 2] = 255
-        colorwheel[col:col+BM, 0] = np.transpose(np.floor(255*np.arange(0, BM) / BM))
-        col += + BM
+        colorwheel[col : col + BM, 2] = 255
+        colorwheel[col : col + BM, 0] = np.transpose(np.floor(255 * np.arange(0, BM) / BM))
+        col += +BM
 
         # MR
-        colorwheel[col:col+MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
-        colorwheel[col:col+MR, 0] = 255
+        colorwheel[col : col + MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
+        colorwheel[col : col + MR, 0] = 255
 
         return colorwheel
 
     def flow_tf(self, flow, size):
         flow_shape = flow.shape
         flow_resized = cv2.resize(flow, (size[1], size[0]))
-        flow_resized[:, :, 0] *= (float(size[1]) / float(flow_shape[1]))
-        flow_resized[:, :, 1] *= (float(size[0]) / float(flow_shape[0]))
+        flow_resized[:, :, 0] *= float(size[1]) / float(flow_shape[1])
+        flow_resized[:, :, 1] *= float(size[0]) / float(flow_shape[0])
 
         return flow_resized
