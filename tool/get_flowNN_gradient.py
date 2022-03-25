@@ -118,7 +118,7 @@ def get_flowNN_gradient(
 
         # Chen: I should combine the following two operations together
         # Check the backward/forward consistency
-        IsConsist, _ = BFconsistCheck(
+        IsConsist = BFconsistCheck(
             flowB_neighbor,
             flowF_vertical,
             flowF_horizont,
@@ -341,7 +341,7 @@ def get_flowNN_gradient(
         flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
 
         # Check the forawrd/backward consistency
-        IsConsist, _ = FBconsistCheck(
+        IsConsist = FBconsistCheck(
             flowF_neighbor,
             flowB_vertical,
             flowB_horizont,
