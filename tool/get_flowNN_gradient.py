@@ -12,9 +12,9 @@ import numpy as np
 # import scipy.io as sio
 from utils.common_utils import (
     interp,
-    BFconsistCheck,
-    FBconsistCheck,
-    consistCheck,
+    BackwardFlowConsistCheck,
+    ForwardFlowConsistCheck,
+    ConsistCheck,
 )
 
 # , get_KeySourceFrame_flowNN_gradient
@@ -118,7 +118,7 @@ def get_flowNN_gradient(
 
         # Chen: I should combine the following two operations together
         # Check the backward/forward consistency
-        IsConsist = BFconsistCheck(
+        IsConsist = BackwardFlowConsistCheck(
             flowB_neighbor,
             flowF_vertical,
             flowF_horizont,
@@ -126,7 +126,7 @@ def get_flowNN_gradient(
             args.consistencyThres,
         )
 
-        BFdiff, BF_uv = consistCheck(videoFlowF[:, :, :, indFrame - 1], videoFlowB[:, :, :, indFrame - 1])
+        BF_uv = ConsistCheck(videoFlowF[:, :, :, indFrame - 1], videoFlowB[:, :, :, indFrame - 1])
 
         # Check out-of-boundary
         # Last column and last row does not have valid gradient
@@ -341,7 +341,7 @@ def get_flowNN_gradient(
         flow_neighbor_int = np.round(copy.deepcopy(flowF_neighbor)).astype(np.int32)
 
         # Check the forawrd/backward consistency
-        IsConsist = FBconsistCheck(
+        IsConsist = ForwardFlowConsistCheck(
             flowF_neighbor,
             flowB_vertical,
             flowB_horizont,
@@ -349,7 +349,7 @@ def get_flowNN_gradient(
             args.consistencyThres,
         )
 
-        FBdiff, FB_uv = consistCheck(videoFlowB[:, :, :, indFrame], videoFlowF[:, :, :, indFrame])
+        FB_uv = ConsistCheck(videoFlowB[:, :, :, indFrame], videoFlowF[:, :, :, indFrame])
 
         # Check out-of-boundary
         # Last column and last row does not have valid gradient
@@ -593,15 +593,15 @@ def get_flowNN_gradient(
 
     for indFrame in range(nFrame):
         if args.Nonlocal:
-            consistencyMap[:, :, 2, indFrame], _ = consistCheck(
+            consistencyMap[:, :, 2, indFrame], _ = ConsistCheck(
                 videoNonLocalFlowB[:, :, :, 0, indFrame],
                 videoNonLocalFlowF[:, :, :, 0, indFrame],
             )
-            consistencyMap[:, :, 3, indFrame], _ = consistCheck(
+            consistencyMap[:, :, 3, indFrame], _ = ConsistCheck(
                 videoNonLocalFlowB[:, :, :, 1, indFrame],
                 videoNonLocalFlowF[:, :, :, 1, indFrame],
             )
-            consistencyMap[:, :, 4, indFrame], _ = consistCheck(
+            consistencyMap[:, :, 4, indFrame], _ = ConsistCheck(
                 videoNonLocalFlowB[:, :, :, 2, indFrame],
                 videoNonLocalFlowF[:, :, :, 2, indFrame],
             )
